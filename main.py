@@ -22,13 +22,15 @@ bot = MeuBot()
 NOME_DO_CARGO = "putinha do skov"
 CANAL_FOTOS_ID = None
 
-# Opções do YTDL e FFmpeg para reprodução de áudio fluida
+# Configuração otimizada do YTDL para evitar bloqueios no Railway
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
     'quiet': True,
+    'no_warnings': True,
     'default_search': 'ytsearch',
-    'source_address': '0.0.0.0'
+    'source_address': '0.0.0.0',
+    'extract_flat': False,
 }
 
 FFMPEG_OPTIONS = {
@@ -58,7 +60,7 @@ async def tocar(ctx, *, busca: str = None):
 
     canal_voz = ctx.author.voice.channel
 
-    # Conecta ao canal de voz se ainda não estiver conectado
+    # Conecta ao canal de voz
     voice_client = ctx.voice_client
     if voice_client is None:
         try:
@@ -71,30 +73,32 @@ async def tocar(ctx, *, busca: str = None):
 
     msg_espera = await ctx.send("🔍 Procurando a música, aguarde um instante...")
 
-    # Busca o áudio via yt-dlp sem travar o bot
+    # Extrai as informações da música de forma assíncrona
     loop = asyncio.get_event_loop()
     try:
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(busca, download=False))
-        if 'entries' in data:
+        if 'entries' in data and len(data['entries']) > 0:
             data = data['entries'][0]
 
-        filename = data['url']
+        url_stream = data['url']
         titulo = data.get('title', 'Música')
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro ao buscar a música: {e}")
+        await msg_espera.edit(content=f"❌ Não foi possível carregar o áudio dessa música. Tente enviar o link direto do YouTube!\n`Erro: {e}`")
         return
 
-    # Se já estiver tocando algo, para a reprodução atual
+    # Se já estiver tocando algo, interrompe
     if voice_client.is_playing():
         voice_client.stop()
 
-    # Toca o áudio
-    source = discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS)
-    voice_client.play(source, after=lambda e: print(f'Erro no tocador: {e}') if e else None)
+    # Toca o áudio via FFmpeg
+    try:
+        source = discord.FFmpegPCMAudio(url_stream, **FFMPEG_OPTIONS)
+        voice_client.play(source, after=lambda e: print(f'Erro na reprodução: {e}') if e else None)
+        await msg_espera.edit(content=f"🎶 **Tocando agora:** `{titulo}` na call **{canal_voz.name}**!")
+    except Exception as e:
+        await msg_espera.edit(content=f"❌ Erro ao reproduzir o áudio: {e}")
 
-    await msg_espera.edit(content=f"🎶 Tocando agora: **{titulo}** na call **{canal_voz.name}**!")
-
-# Comando para mandar o bot sair da call
+# Comando para fazer o bot sair da call
 @bot.command(name="parar")
 async def parar(ctx):
     if ctx.voice_client:
@@ -104,7 +108,7 @@ async def parar(ctx):
         await ctx.send("❌ Eu não estou em nenhum canal de voz no momento.")
 
 # ==========================================
-# BOAS-VINDAS
+# BOAS-VINDAS ESTILO GF
 # ==========================================
 @bot.event
 async def on_member_join(member: discord.Member):
@@ -132,7 +136,7 @@ async def on_member_join(member: discord.Member):
         await canal_boas_vindas.send(embed=embed_chat)
 
 # ==========================================
-# FOTOS
+# SALVAR/ENCAMINHAR FOTOS
 # ==========================================
 @bot.event
 async def on_message(message: discord.Message):
@@ -168,7 +172,7 @@ async def on_message(message: discord.Message):
 async def stps(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_DO_CARGO)
     if cargo is None:
-        await interaction.response.send_message(f"⚠️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
+        await interaction.response.send_message(f"⚠️️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
@@ -198,8 +202,8 @@ async def slvrfts(interaction: discord.Interaction, canal: discord.TextChannel):
 @bot.tree.command(name="cmnds", description="Exibe a lista de comandos do bot.")
 async def cmnds(interaction: discord.Interaction):
     embed = discord.Embed(title="📜 Lista de Comandos", color=discord.Color.green())
-    embed.add_field(name="!tocar nome da musica", value="O bot entra na sua call e toca a música desejada.", inline=False)
-    embed.add_field(name="!parar", value="O bot para de tocar e sai da call de voz.", inline=False)
+    embed.add_field(name="!tocar <nome ou link>", value="O bot entra na call e toca a música.", inline=False)
+    embed.add_field(name="!parar", value="Para de tocar e sai da call de voz.", inline=False)
     embed.add_field(name="/stps @membro", value="Atribui o cargo especial ao membro indicado.", inline=False)
     embed.add_field(name="/vzr @membro", value="Bane o membro selecionado.", inline=False)
     embed.add_field(name="/slvrfts #canal", value="Define o canal para salvar fotos.", inline=False)
@@ -207,4 +211,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-          
+                
