@@ -23,7 +23,7 @@ bot = MeuBot()
 NOME_DO_CARGO = "putinha do skov"
 CANAL_FOTOS_ID = None
 
-# Configuração do YTDL com bypass para servidores/Railway
+# Configuração do YTDL otimizada para evitar bloqueios de IP de servidor
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
@@ -31,20 +31,21 @@ YTDL_OPTIONS = {
     'no_warnings': True,
     'default_search': 'ytsearch',
     'source_address': '0.0.0.0',
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
     'extract_flat': False,
     'extractor_args': {
         'youtube': {
-            'player_client': ['web_embedded', 'android']
+            'player_client': ['android', 'mweb']
         }
     }
 }
 
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-    'options': '-vn'
+    'options': '-vn -loglevel error'
 }
-
-ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
 @bot.event
 async def on_ready():
@@ -67,7 +68,7 @@ async def tocar(ctx, *, busca: str = None):
     canal_voz = ctx.author.voice.channel
     voice_client = ctx.voice_client
 
-    # Conecta ou move para o canal de voz do usuário
+    # Conecta ou move para o canal de voz
     try:
         if voice_client is None:
             voice_client = await canal_voz.connect(reconnect=True, timeout=20.0)
@@ -77,7 +78,7 @@ async def tocar(ctx, *, busca: str = None):
         await ctx.send(f"❌ Não consegui entrar na call: {e}")
         return
 
-    # Espera até garantir que o cliente de voz está conectado ao Discord
+    # Garante que a conexão de voz estabeleceu
     contador = 0
     while not voice_client.is_connected():
         await asyncio.sleep(0.5)
@@ -88,31 +89,43 @@ async def tocar(ctx, *, busca: str = None):
 
     msg_espera = await ctx.send("🔍 Procurando a música, aguarde um instante...")
 
-    # Extrai as informações da música de forma assíncrona
+    # Extração de informações do áudio
     loop = asyncio.get_event_loop()
     try:
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(busca, download=False))
-        if 'entries' in data and len(data['entries']) > 0:
-            data = data['entries'][0]
+        with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ytdl:
+            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(busca, download=False))
+            
+            if 'entries' in data and len(data['entries']) > 0:
+                data = data['entries'][0]
 
-        url_stream = data['url']
-        titulo = data.get('title', 'Música')
+            url_stream = data.get('url')
+            titulo = data.get('title', 'Música')
+            
+            if not url_stream:
+                await msg_espera.edit(content="❌ Não foi possível obter o link de áudio da música.")
+                return
+
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Não foi possível carregar o áudio dessa música.\n`Erro: {e}`")
+        await msg_espera.edit(content=f"❌ Erro ao buscar música no YouTube:\n`{e}`")
         return
 
-    # Se já estiver tocando algo, interrompe
+    # Se já estiver tocando algo, para
     if voice_client.is_playing():
         voice_client.stop()
 
-    # Toca o áudio via FFmpeg
+    # Toca o áudio via FFmpeg apontando para o binário do imageio-ffmpeg
     try:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         source = discord.FFmpegPCMAudio(url_stream, executable=ffmpeg_exe, **FFMPEG_OPTIONS)
-        voice_client.play(source, after=lambda e: print(f'Erro na reprodução: {e}') if e else None)
+        
+        def rep_callback(err):
+            if err:
+                print(f"Erro durante a reprodução: {err}")
+
+        voice_client.play(source, after=rep_callback)
         await msg_espera.edit(content=f"🎶 **Tocando agora:** `{titulo}` na call **{canal_voz.name}**!")
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro ao reproduzir o áudio: {e}")
+        await msg_espera.edit(content=f"❌ Erro ao iniciar o áudio: {e}")
 
 # Comando para fazer o bot sair da call
 @bot.command(name="parar")
@@ -227,4 +240,3 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-                                                   
