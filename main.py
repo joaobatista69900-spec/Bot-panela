@@ -23,7 +23,7 @@ bot = MeuBot()
 NOME_DO_CARGO = "putinha do skov"
 CANAL_FOTOS_ID = None
 
-# Configuração otimizada do YTDL para evitar bloqueios no Railway
+# Configuração do YTDL com bypass para servidores/Railway
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
@@ -32,6 +32,11 @@ YTDL_OPTIONS = {
     'default_search': 'ytsearch',
     'source_address': '0.0.0.0',
     'extract_flat': False,
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['web_embedded', 'android']
+        }
+    }
 }
 
 FFMPEG_OPTIONS = {
@@ -84,14 +89,14 @@ async def tocar(ctx, *, busca: str = None):
         url_stream = data['url']
         titulo = data.get('title', 'Música')
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Não foi possível carregar o áudio dessa música. Tente enviar o link direto do YouTube!\n`Erro: {e}`")
+        await msg_espera.edit(content=f"❌ Não foi possível carregar o áudio dessa música.\n`Erro: {e}`")
         return
 
     # Se já estiver tocando algo, interrompe
     if voice_client.is_playing():
         voice_client.stop()
 
-    # Toca o áudio via FFmpeg usando o caminho fornecido pelo imageio_ffmpeg
+    # Toca o áudio via FFmpeg apontando para o executável do imageio-ffmpeg
     try:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         source = discord.FFmpegPCMAudio(url_stream, executable=ffmpeg_exe, **FFMPEG_OPTIONS)
@@ -174,7 +179,7 @@ async def on_message(message: discord.Message):
 async def stps(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_DO_CARGO)
     if cargo is None:
-        await interaction.response.send_message(f"⚠ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
+        await interaction.response.send_message(f"⚠️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
@@ -213,4 +218,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-                                                                          
+        
