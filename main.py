@@ -4,6 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import yt_dlp
+import imageio_ffmpeg
 
 class MeuBot(commands.Bot):
     def __init__(self):
@@ -90,9 +91,10 @@ async def tocar(ctx, *, busca: str = None):
     if voice_client.is_playing():
         voice_client.stop()
 
-    # Toca o áudio via FFmpeg
+    # Toca o áudio via FFmpeg usando o caminho fornecido pelo imageio_ffmpeg
     try:
-        source = discord.FFmpegPCMAudio(url_stream, **FFMPEG_OPTIONS)
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        source = discord.FFmpegPCMAudio(url_stream, executable=ffmpeg_exe, **FFMPEG_OPTIONS)
         voice_client.play(source, after=lambda e: print(f'Erro na reprodução: {e}') if e else None)
         await msg_espera.edit(content=f"🎶 **Tocando agora:** `{titulo}` na call **{canal_voz.name}**!")
     except Exception as e:
@@ -172,7 +174,7 @@ async def on_message(message: discord.Message):
 async def stps(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_DO_CARGO)
     if cargo is None:
-        await interaction.response.send_message(f"⚠️️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
+        await interaction.response.send_message(f"⚠ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
@@ -211,4 +213,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-                
+                                                                          
