@@ -65,17 +65,26 @@ async def tocar(ctx, *, busca: str = None):
         return
 
     canal_voz = ctx.author.voice.channel
-
-    # Conecta ao canal de voz
     voice_client = ctx.voice_client
-    if voice_client is None:
-        try:
-            voice_client = await canal_voz.connect()
-        except Exception as e:
-            await ctx.send(f"❌ Não consegui entrar na call: {e}")
+
+    # Conecta ou move para o canal de voz do usuário
+    try:
+        if voice_client is None:
+            voice_client = await canal_voz.connect(reconnect=True, timeout=20.0)
+        elif voice_client.channel != canal_voz:
+            await voice_client.move_to(canal_voz)
+    except Exception as e:
+        await ctx.send(f"❌ Não consegui entrar na call: {e}")
+        return
+
+    # Espera até garantir que o cliente de voz está conectado ao Discord
+    contador = 0
+    while not voice_client.is_connected():
+        await asyncio.sleep(0.5)
+        contador += 1
+        if contador > 10:
+            await ctx.send("❌ A conexão com o canal de voz demorou demais. Tente novamente!")
             return
-    elif voice_client.channel != canal_voz:
-        await voice_client.move_to(canal_voz)
 
     msg_espera = await ctx.send("🔍 Procurando a música, aguarde um instante...")
 
@@ -96,7 +105,7 @@ async def tocar(ctx, *, busca: str = None):
     if voice_client.is_playing():
         voice_client.stop()
 
-    # Toca o áudio via FFmpeg apontando para o executável do imageio-ffmpeg
+    # Toca o áudio via FFmpeg
     try:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         source = discord.FFmpegPCMAudio(url_stream, executable=ffmpeg_exe, **FFMPEG_OPTIONS)
@@ -218,4 +227,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-        
+                                                   
