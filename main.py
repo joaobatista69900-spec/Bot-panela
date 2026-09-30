@@ -1,9 +1,18 @@
 import os
-import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
 import imageio_ffmpeg
+
+# ==========================================
+# CONFIGURAÇÕES PRINCIPAIS
+# ==========================================
+ID_DO_SERVIDOR = 123456789012345678  # 👈 COLOQUE O ID DO SEU SERVIDOR AQUI (apenas números)
+DONO_ID = 1461858587080130663
+
+NOME_CARGO_STPS = "putinha do skov"
+NOME_CARGO_FILHINHA = "filhinha de skov"
+CANAL_FOTOS_ID = None
 
 class MeuBot(commands.Bot):
     def __init__(self):
@@ -14,19 +23,21 @@ class MeuBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        await self.tree.sync()
+        # Sincroniza instantaneamente no seu servidor
+        if ID_DO_SERVIDOR != 123456789012345678:
+            guild = discord.Object(id=ID_DO_SERVIDOR)
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            print("✅ Comandos Slash sincronizados instantaneamente no servidor!")
+        else:
+            await self.tree.sync()
+            print("⚠️ ID do servidor não configurado. Sincronização global ativada (pode demorar a aparecer).")
 
 bot = MeuBot()
 
-# Configurações de cargos e IDs
-NOME_CARGO_STPS = "putinha do skov"
-NOME_CARGO_FILHINHA = "filhinha de skov"
-CANAL_FOTOS_ID = None
-DONO_ID = 1461858587080130663  # Seu ID de proprietário
-
 @bot.event
 async def on_ready():
-    print(f"Bot conectado com sucesso como {bot.user}!")
+    print(f"🔥 Bot conectado e rodando como {bot.user}!")
 
 # ==========================================
 # BOAS-VINDAS ESTILO GF
@@ -66,7 +77,7 @@ async def on_message(message: discord.Message):
     if message.author.bot or not message.guild:
         return
 
-    # --- LÓGICA DO "PAPAI" PARA SKOV PDX ---
+    # --- AUTOMATISMO DO "PAPAI" ---
     conteudo = message.content.lower()
     if "papai" in conteudo:
         skov_member = discord.utils.find(
@@ -76,7 +87,6 @@ async def on_message(message: discord.Message):
 
         if skov_member:
             chamou_skov = False
-
             if skov_member in message.mentions:
                 chamou_skov = True
             elif message.reference and message.reference.resolved:
@@ -116,23 +126,22 @@ async def on_message(message: discord.Message):
     await bot.process_commands(message)
 
 # ==========================================
-# COMANDOS DE BARRA (/slash)
+# COMANDOS SLASH (/SLASH)
 # ==========================================
 
-# 1. Comando /quem (Informa quem pode mexer no bot)
-@bot.tree.command(name="quem", description="Exibe quem tem acesso para mexer nas configurações do bot.")
+# 1. /quem
+@bot.tree.command(name="quem", description="Exibe quem tem permissão para mexer no bot.")
 async def quem(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🔒 Permissões do Bot",
-        description=f"Apenas o **dono do bot** (<@{DONO_ID}>) tem acesso exclusivo para alterar, gerenciar e executar as configurações internas.",
+        description=f"Apenas o **dono do bot** (<@{DONO_ID}>) tem acesso exclusivo para alterar e gerenciar as configurações.",
         color=discord.Color.purple()
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# 2. Comando /gemer (Entra na call e toca o vídeo/áudio configurado)
-@bot.tree.command(name="gemer", description="O bot entra na call de voz e toca o áudio do vídeo configurado.")
+# 2. /gemer
+@bot.tree.command(name="gemer", description="O bot entra na call e reproduz o áudio configurado.")
 async def gemer(interaction: discord.Interaction):
-    # Verifica se o usuário está em um canal de voz
     if not interaction.user.voice or not interaction.user.voice.channel:
         await interaction.response.send_message("❌ Você precisa estar em um canal de voz para usar esse comando!", ephemeral=True)
         return
@@ -140,17 +149,14 @@ async def gemer(interaction: discord.Interaction):
     canal_voz = interaction.user.voice.channel
     guild = interaction.guild
     voice_client = guild.voice_client
-
-    # Nome do arquivo de vídeo local colocado dentro da pasta do projeto
     ARQUIVO_VIDEO = "gemido.mp4"
 
     if not os.path.exists(ARQUIVO_VIDEO):
-        await interaction.response.send_message(f"❌ O arquivo `{ARQUIVO_VIDEO}` não foi encontrado no servidor!", ephemeral=True)
+        await interaction.response.send_message(f"❌ O arquivo `{ARQUIVO_VIDEO}` não foi encontrado no servidor do bot!", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
 
-    # Conecta ou move para a call
     try:
         if voice_client is None:
             voice_client = await canal_voz.connect(reconnect=True, timeout=20.0)
@@ -160,17 +166,15 @@ async def gemer(interaction: discord.Interaction):
         await interaction.followup.send(f"❌ Erro ao entrar no canal de voz: {e}", ephemeral=True)
         return
 
-    # Função para repetir o áudio continuamente (loop)
     def tocar_loop(error):
         if error:
-            print(f"Erro no player: {error}")
+            print(f"Erro no áudio: {error}")
             return
         if voice_client and voice_client.is_connected():
             ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
             source = discord.FFmpegPCMAudio(ARQUIVO_VIDEO, executable=ffmpeg_exe)
             voice_client.play(source, after=tocar_loop)
 
-    # Interrompe se algo já estiver tocando e inicia a reprodução
     if voice_client.is_playing():
         voice_client.stop()
 
@@ -178,39 +182,39 @@ async def gemer(interaction: discord.Interaction):
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         source = discord.FFmpegPCMAudio(ARQUIVO_VIDEO, executable=ffmpeg_exe)
         voice_client.play(source, after=tocar_loop)
-        await interaction.followup.send(f"🔊 O bot entrou na call **{canal_voz.name}** e começou a reprodução!", ephemeral=True)
+        await interaction.followup.send(f"🔊 Conectado na call **{canal_voz.name}** e tocando áudio!", ephemeral=True)
     except Exception as e:
-        await interaction.followup.send(f"❌ Erro ao reproduzir áudio: {e}", ephemeral=True)
+        await interaction.followup.send(f"❌ Erro na reprodução: {e}", ephemeral=True)
 
-# 3. Comando /dar (Atribui o cargo filhinha de skov)
-@bot.tree.command(name="dar", description="Atribui o cargo filhinha de skov ao membro selecionado.")
+# 3. /dar
+@bot.tree.command(name="dar", description="Atribui o cargo filhinha de skov.")
 @app_commands.describe(membro="Selecione o membro que receberá o cargo")
 async def dar(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_CARGO_FILHINHA)
     if cargo is None:
-        await interaction.response.send_message(f"⚠️ O cargo **{NOME_CARGO_FILHINHA}** não foi encontrado no servidor!", ephemeral=True)
+        await interaction.response.send_message(f"⚠️ O cargo **{NOME_CARGO_FILHINHA}** não foi encontrado!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
-        await interaction.response.send_message(f"💖 O cargo **{cargo.name}** foi atribuído a {membro.mention} com sucesso!", ephemeral=True)
+        await interaction.response.send_message(f"💖 O cargo **{cargo.name}** foi atribuído a {membro.mention}!", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"❌ Erro ao atribuir cargo: {e}", ephemeral=True)
 
-# 4. Comando /stps (Atribui o cargo putinha do skov)
-@bot.tree.command(name="stps", description="Atribui o cargo putinha do skov ao membro selecionado.")
+# 4. /stps
+@bot.tree.command(name="stps", description="Atribui o cargo putinha do skov.")
 @app_commands.describe(membro="Selecione o membro que receberá o cargo")
 async def stps(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_CARGO_STPS)
     if cargo is None:
-        await interaction.response.send_message(f"⚠️ O cargo **{NOME_CARGO_STPS}** não foi encontrado no servidor!", ephemeral=True)
+        await interaction.response.send_message(f"⚠️ O cargo **{NOME_CARGO_STPS}** não foi encontrado!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
-        await interaction.response.send_message(f"🔥 O cargo **{cargo.name}** foi atribuído a {membro.mention} com sucesso!", ephemeral=True)
+        await interaction.response.send_message(f"🔥 O cargo **{cargo.name}** foi atribuído a {membro.mention}!", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"❌ Erro ao atribuir cargo: {e}", ephemeral=True)
 
-# 5. Comando /vzr (Bane um usuário)
+# 5. /vzr
 @bot.tree.command(name="vzr", description="Bane um usuário do servidor.")
 @app_commands.describe(membro="Selecione o membro a ser banido", motivo="Motivo do banimento")
 async def vzr(interaction: discord.Interaction, membro: discord.Member, motivo: str = "Nenhum motivo fornecido"):
@@ -223,31 +227,31 @@ async def vzr(interaction: discord.Interaction, membro: discord.Member, motivo: 
     except Exception as e:
         await interaction.response.send_message(f"❌ Erro ao banir usuário: {e}", ephemeral=True)
 
-# 6. Comando /slvrfts (Define o canal para salvar fotos)
+# 6. /slvrfts
 @bot.tree.command(name="slvrfts", description="Define o canal fixo onde as fotos enviadas serão agrupadas.")
-@app_commands.describe(canal="Selecione o canal onde as fotos serão encaminhadas")
+@app_commands.describe(canal="Selecione o canal de fotos")
 async def slvrfts(interaction: discord.Interaction, canal: discord.TextChannel):
     global CANAL_FOTOS_ID
     CANAL_FOTOS_ID = canal.id
-    await interaction.response.send_message(f"✅ Canal de fotos definido com sucesso para: {canal.mention}", ephemeral=True)
+    await interaction.response.send_message(f"✅ Canal de fotos definido para: {canal.mention}", ephemeral=True)
 
-# 7. Comando /cmnds (Lista todos os comandos)
+# 7. /cmnds
 @bot.tree.command(name="cmnds", description="Exibe a lista de comandos do bot.")
 async def cmnds(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="📜 Lista de Comandos",
-        description="Confira abaixo os comandos disponíveis:",
+        title="📜 Lista de Comandos Slash",
+        description="Confira todos os comandos disponíveis:",
         color=discord.Color.green()
     )
     embed.add_field(name="/quem", value="Exibe quem pode mexer nas configurações do bot.", inline=False)
-    embed.add_field(name="/gemer", value="O bot entra na call e toca o áudio do vídeo configurado.", inline=False)
+    embed.add_field(name="/gemer", value="O bot entra na call e toca o áudio do vídeo.", inline=False)
     embed.add_field(name="/dar @membro", value="Atribui o cargo 'filhinha de skov'.", inline=False)
     embed.add_field(name="/stps @membro", value="Atribui o cargo 'putinha do skov'.", inline=False)
     embed.add_field(name="/vzr @membro", value="Bane o membro selecionado do servidor.", inline=False)
-    embed.add_field(name="/slvrfts #canal", value="Define o canal fixo para onde as fotos enviadas serão salvas.", inline=False)
+    embed.add_field(name="/slvrfts #canal", value="Define o canal fixo para onde as fotos serão encaminhadas.", inline=False)
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Inicialização do Bot
+# Execução do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-                  
+    
