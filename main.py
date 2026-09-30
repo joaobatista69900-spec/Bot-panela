@@ -172,7 +172,18 @@ async def on_message(message: discord.Message):
 # COMANDOS COM PREFIXO $
 # ==========================================
 
-# COMANDO NOVO: $gemapramimbot
+# COMANDO: $permissoes
+@bot.command(name="permissoes")
+async def permissoes_cmd(ctx):
+    embed = discord.Embed(
+        title="🔒 Painel de Permissões",
+        color=discord.Color.purple()
+    )
+    embed.add_field(name="Quem pode usar os comandos do bot?", value="Qualquer membro do servidor pode usar os comandos gerais.", inline=False)
+    embed.add_field(name="Quem pode digitar os comandos aqui no chat?", value="Qualquer membro com acesso de escrita neste canal.", inline=False)
+    await ctx.send(embed=embed)
+
+# COMANDO: $gemapramimbot
 @bot.command(name="gemapramimbot")
 async def gemapramimbot_cmd(ctx):
     await ctx.send("Papai, vem PV quero pica")
@@ -205,19 +216,15 @@ async def entrarcallgemer_cmd(ctx):
     if not discord.opus.is_loaded():
         carregar_opus()
 
-    if not discord.opus.is_loaded():
-        await ctx.send("❌ A biblioteca de áudio Opus não está carregada no servidor do bot.")
-        return
-
     canal_voz = ctx.author.voice.channel
     voice_client = ctx.voice_client
     ARQUIVO_VIDEO = "gemido.mp4"
 
     if not os.path.exists(ARQUIVO_VIDEO):
-        await ctx.send("❌ Nenhum arquivo de som foi enviado ainda! Digite `$gemer` e envie o arquivo primeiro.")
+        await ctx.send("❌ Nenhum arquivo foi enviado! Envie o arquivo com `$gemer` primeiro.")
         return
 
-    msg_espera = await ctx.send("⏳ Conectando e preparando áudio...")
+    msg_espera = await ctx.send("⏳ Conectando...")
 
     try:
         if voice_client is None:
@@ -225,29 +232,21 @@ async def entrarcallgemer_cmd(ctx):
         elif voice_client.channel != canal_voz:
             await voice_client.move_to(canal_voz)
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro ao entrar no canal de voz: `{e}`")
+        await msg_espera.edit(content=f"❌ Erro ao entrar na call: `{e}`")
         return
 
     try:
-        try:
-            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-        except Exception:
-            ffmpeg_exe = "ffmpeg"
+        executable_path = imageio_ffmpeg.get_ffmpeg_exe()
 
         if voice_client.is_playing():
             voice_client.stop()
 
-        source = discord.FFmpegPCMAudio(
-            ARQUIVO_VIDEO,
-            executable=ffmpeg_exe,
-            options="-vn"
-        )
-
+        source = discord.FFmpegPCMAudio(ARQUIVO_VIDEO, executable=executable_path)
         voice_client.play(source)
-        await msg_espera.edit(content=f"🔊 Conectado na call **{canal_voz.name}** e tocando áudio!")
-
+        
+        await msg_espera.edit(content=f"🔊 Tocando áudio na call **{canal_voz.name}**!")
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro na reprodução: `{type(e).__name__}: {e}`")
+        await msg_espera.edit(content=f"❌ O servidor bloqueou o player de áudio (FFmpeg error): `{e}`")
 
 # 4. $dar @membro
 @bot.command(name="dar")
@@ -318,6 +317,7 @@ async def cmnds(interaction: discord.Interaction):
         description="Confira todos os comandos disponíveis:",
         color=discord.Color.green()
     )
+    embed.add_field(name="$permissoes", value="Exibe o painel de permissões do bot.", inline=False)
     embed.add_field(name="$gemapramimbot", value="Responde com a frase personalizada.", inline=False)
     embed.add_field(name="$quem", value="Exibe quem pode mexer nas configurações do bot.", inline=False)
     embed.add_field(name="$gemer", value="Prepara o bot para receber o arquivo de som.", inline=False)
