@@ -178,17 +178,15 @@ async def entrarcallgemer_cmd(ctx):
         elif voice_client.channel != canal_voz:
             await voice_client.move_to(canal_voz)
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro ao entrar no canal de voz: {e}")
+        await msg_espera.edit(content=f"❌ Erro ao entrar no canal de voz: `{e}`")
         return
 
     try:
-        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-        
-        # Opções do FFmpeg para garantir compatibilidade e áudio limpo no Discord
-        ffmpeg_options = {
-            'options': '-vn -loglevel error',
-            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
-        }
+        # Tenta obter o caminho do ffmpeg do sistema ou do imageio
+        try:
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        except:
+            ffmpeg_exe = "ffmpeg"
 
         if voice_client.is_playing():
             voice_client.stop()
@@ -196,14 +194,14 @@ async def entrarcallgemer_cmd(ctx):
         source = discord.FFmpegPCMAudio(
             ARQUIVO_VIDEO,
             executable=ffmpeg_exe,
-            options=ffmpeg_options['options']
+            options="-vn"
         )
 
         voice_client.play(source)
         await msg_espera.edit(content=f"🔊 Conectado na call **{canal_voz.name}** e tocando áudio!")
 
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro na reprodução: `{e}`")
+        await msg_espera.edit(content=f"❌ Erro na reprodução: `{type(e).__name__}: {e}`")
 
 # ==========================================
 # COMANDOS SLASH (/SLASH)
@@ -273,4 +271,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Execução do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-                
+        
