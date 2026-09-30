@@ -13,7 +13,6 @@ NOME_CARGO_STPS = "putinha do skov"
 NOME_CARGO_FILHINHA = "filhinha de skov"
 CANAL_FOTOS_ID = None
 
-# Variável para rastrear se o bot está aguardando o envio do vídeo
 AGUARDANDO_ARQUIVO_GEMIDO = False
 USUARIO_AGUARDANDO_ID = None
 
@@ -63,7 +62,7 @@ async def on_member_join(member: discord.Member):
         await canal_boas_vindas.send(embed=embed_chat)
 
 # ==========================================
-# MONITORAMENTO DE MENSAGENS / FOTOS / PAPAI / DOWNLOAD DE VÍDEO
+# MONITORAMENTO DE MENSAGENS / FOTOS / DOWNLOAD
 # ==========================================
 @bot.event
 async def on_message(message: discord.Message):
@@ -72,21 +71,19 @@ async def on_message(message: discord.Message):
     if message.author.bot or not message.guild:
         return
 
-    # --- BAixar ARQUIVO DO GEMIDO QUANDO SOLICITADO VIA $gemer ---
+    # --- BAIXAR ARQUIVO SOLICITADO VIA $gemer ---
     if AGUARDANDO_ARQUIVO_GEMIDO and message.author.id == USUARIO_AGUARDANDO_ID:
         if message.attachments:
             anexo = message.attachments[0]
-            # Aceita arquivos de vídeo ou áudio
-            if anexo.content_type and ("video" in anexo.content_type or "audio" in anexo.content_type):
-                try:
-                    await anexo.save("gemido.mp4")
-                    AGUARDANDO_ARQUIVO_GEMIDO = False
-                    USUARIO_AGUARDANDO_ID = None
-                    await message.channel.send("✅ Arquivo recebido e copiado com sucesso! Use `$entrarcallgemer` na call para reproduzir.")
-                    return
-                except Exception as e:
-                    await message.channel.send(f"❌ Erro ao salvar o arquivo: {e}")
-                    return
+            try:
+                await anexo.save("gemido.mp4")
+                AGUARDANDO_ARQUIVO_GEMIDO = False
+                USUARIO_AGUARDANDO_ID = None
+                await message.channel.send("✅ Arquivo recebido e copiado com sucesso! Entre na call e digite `$entrarcallgemer`.")
+                return
+            except Exception as e:
+                await message.channel.send(f"❌ Erro ao salvar o arquivo: {e}")
+                return
 
     # --- AUTOMATISMO DO "PAPAI" ---
     conteudo = message.content.lower()
@@ -150,7 +147,7 @@ async def quem_cmd(ctx):
     )
     await ctx.send(embed=embed)
 
-# 2. $gemer (Solicita o arquivo)
+# 2. $gemer
 @bot.command(name="gemer")
 async def gemer_cmd(ctx):
     global AGUARDANDO_ARQUIVO_GEMIDO, USUARIO_AGUARDANDO_ID
@@ -158,7 +155,7 @@ async def gemer_cmd(ctx):
     USUARIO_AGUARDANDO_ID = ctx.author.id
     await ctx.send("Envia o arquivo que irei copiar o som")
 
-# 3. $entrarcallgemer (Entra na call e toca o som copiado)
+# 3. $entrarcallgemer
 @bot.command(name="entrarcallgemer")
 async def entrarcallgemer_cmd(ctx):
     if not ctx.author.voice or not ctx.author.voice.channel:
@@ -184,31 +181,34 @@ async def entrarcallgemer_cmd(ctx):
         await msg_espera.edit(content=f"❌ Erro ao entrar no canal de voz: {e}")
         return
 
-    def tocar_loop(error):
-        if error:
-            print(f"Erro no áudio: {error}")
-            return
-        if voice_client and voice_client.is_connected():
-            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-            source = discord.FFmpegPCMAudio(ARQUIVO_VIDEO, executable=ffmpeg_exe)
-            voice_client.play(source, after=tocar_loop)
-
-    if voice_client.is_playing():
-        voice_client.stop()
-
     try:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-        source = discord.FFmpegPCMAudio(ARQUIVO_VIDEO, executable=ffmpeg_exe)
-        voice_client.play(source, after=tocar_loop)
-        await msg_espera.edit(content=f"🔊 Conectado na call **{canal_voz.name}** e reproduzindo áudio copiado!")
+        
+        # Opções do FFmpeg para garantir compatibilidade e áudio limpo no Discord
+        ffmpeg_options = {
+            'options': '-vn -loglevel error',
+            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+        }
+
+        if voice_client.is_playing():
+            voice_client.stop()
+
+        source = discord.FFmpegPCMAudio(
+            ARQUIVO_VIDEO,
+            executable=ffmpeg_exe,
+            options=ffmpeg_options['options']
+        )
+
+        voice_client.play(source)
+        await msg_espera.edit(content=f"🔊 Conectado na call **{canal_voz.name}** e tocando áudio!")
+
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro na reprodução: {e}")
+        await msg_espera.edit(content=f"❌ Erro na reprodução: `{e}`")
 
 # ==========================================
 # COMANDOS SLASH (/SLASH)
 # ==========================================
 
-# 4. /dar
 @bot.tree.command(name="dar", description="Atribui o cargo filhinha de skov.")
 @app_commands.describe(membro="Selecione o membro que receberá o cargo")
 async def dar(interaction: discord.Interaction, membro: discord.Member):
@@ -222,7 +222,6 @@ async def dar(interaction: discord.Interaction, membro: discord.Member):
     except Exception as e:
         await interaction.response.send_message(f"❌ Erro ao atribuir cargo: {e}", ephemeral=True)
 
-# 5. /stps
 @bot.tree.command(name="stps", description="Atribui o cargo putinha do skov.")
 @app_commands.describe(membro="Selecione o membro que receberá o cargo")
 async def stps(interaction: discord.Interaction, membro: discord.Member):
@@ -236,7 +235,6 @@ async def stps(interaction: discord.Interaction, membro: discord.Member):
     except Exception as e:
         await interaction.response.send_message(f"❌ Erro ao atribuir cargo: {e}", ephemeral=True)
 
-# 6. /vzr
 @bot.tree.command(name="vzr", description="Bane um usuário do servidor.")
 @app_commands.describe(membro="Selecione o membro a ser banido", motivo="Motivo do banimento")
 async def vzr(interaction: discord.Interaction, membro: discord.Member, motivo: str = "Nenhum motivo fornecido"):
@@ -249,7 +247,6 @@ async def vzr(interaction: discord.Interaction, membro: discord.Member, motivo: 
     except Exception as e:
         await interaction.response.send_message(f"❌ Erro ao banir usuário: {e}", ephemeral=True)
 
-# 7. /slvrfts
 @bot.tree.command(name="slvrfts", description="Define o canal fixo onde as fotos enviadas serão agrupadas.")
 @app_commands.describe(canal="Selecione o canal de fotos")
 async def slvrfts(interaction: discord.Interaction, canal: discord.TextChannel):
@@ -257,7 +254,6 @@ async def slvrfts(interaction: discord.Interaction, canal: discord.TextChannel):
     CANAL_FOTOS_ID = canal.id
     await interaction.response.send_message(f"✅ Canal de fotos definido para: {canal.mention}", ephemeral=True)
 
-# 8. /cmnds
 @bot.tree.command(name="cmnds", description="Exibe a lista de comandos do bot.")
 async def cmnds(interaction: discord.Interaction):
     embed = discord.Embed(
@@ -267,7 +263,7 @@ async def cmnds(interaction: discord.Interaction):
     )
     embed.add_field(name="$quem", value="Exibe quem pode mexer nas configurações do bot.", inline=False)
     embed.add_field(name="$gemer", value="Prepara o bot para receber o arquivo de som.", inline=False)
-    embed.add_field(name="$entrarcallgemer", value="Entra no canal de voz e toca o som gravado.", inline=False)
+    embed.add_field(name="$entrarcallgemer", value="Entra na call e toca o som enviado.", inline=False)
     embed.add_field(name="/dar @membro", value="Atribui o cargo 'filhinha de skov'.", inline=False)
     embed.add_field(name="/stps @membro", value="Atribui o cargo 'putinha do skov'.", inline=False)
     embed.add_field(name="/vzr @membro", value="Bane o membro selecionado do servidor.", inline=False)
@@ -277,4 +273,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Execução do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-                    
+                
