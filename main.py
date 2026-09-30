@@ -12,10 +12,8 @@ def carregar_opus():
     if discord.opus.is_loaded():
         return True
 
-    # Tenta carregar usando a biblioteca nativa empacotada no Python
     try:
         import opuslib_sys
-        # Tenta pegar o caminho do arquivo compilado do opuslib_sys
         opus_path = opuslib_sys._opus_lib_path
         discord.opus.load_opus(opus_path)
         print(f"✅ Opus carregado via opuslib_sys: {opus_path}")
@@ -23,7 +21,6 @@ def carregar_opus():
     except Exception as e:
         print(f"⚠️ Erro ao carregar via opuslib_sys: {e}")
 
-    # Outras tentativas padrão de fallback no Linux
     caminhos_fallback = [
         'libopus.so.0',
         'libopus.so',
@@ -247,47 +244,60 @@ async def entrarcallgemer_cmd(ctx):
     except Exception as e:
         await msg_espera.edit(content=f"❌ Erro na reprodução: `{type(e).__name__}: {e}`")
 
+# 4. $dar @membro
+@bot.command(name="dar")
+async def dar_cmd(ctx, membro: discord.Member = None):
+    if membro is None:
+        await ctx.send("❌ Mencione um membro! Exemplo: `$dar @usuario`")
+        return
+
+    cargo = discord.utils.get(ctx.guild.roles, name=NOME_CARGO_FILHINHA)
+    if cargo is None:
+        await ctx.send(f"⚠️ O cargo **{NOME_CARGO_FILHINHA}** não foi encontrado!")
+        return
+    try:
+        await membro.add_roles(cargo)
+        await ctx.send(f"💖 O cargo **{cargo.name}** foi atribuído a {membro.mention}!")
+    except Exception as e:
+        await ctx.send(f"❌ Erro ao atribuir cargo: {e}")
+
+# 5. $stps @membro
+@bot.command(name="stps")
+async def stps_cmd(ctx, membro: discord.Member = None):
+    if membro is None:
+        await ctx.send("❌ Mencione um membro! Exemplo: `$stps @usuario`")
+        return
+
+    cargo = discord.utils.get(ctx.guild.roles, name=NOME_CARGO_STPS)
+    if cargo is None:
+        await ctx.send(f"⚠️ O cargo **{NOME_CARGO_STPS}** não foi encontrado!")
+        return
+    try:
+        await membro.add_roles(cargo)
+        await ctx.send(f"🔥 O cargo **{cargo.name}** foi atribuído a {membro.mention}!")
+    except Exception as e:
+        await ctx.send(f"❌ Erro ao atribuir cargo: {e}")
+
+# 6. $vzr @membro [motivo]
+@bot.command(name="vzr")
+async def vzr_cmd(ctx, membro: discord.Member = None, *, motivo: str = "Nenhum motivo fornecido"):
+    if not ctx.author.guild_permissions.ban_members:
+        await ctx.send("❌ Você não tem permissão para banir membros!")
+        return
+
+    if membro is None:
+        await ctx.send("❌ Mencione um membro! Exemplo: `$vzr @usuario` ou `$vzr @usuario motivo`")
+        return
+
+    try:
+        await membro.ban(reason=motivo)
+        await ctx.send(f"🔨 O usuário **{membro.display_name}** foi banido! Motivo: {motivo}")
+    except Exception as e:
+        await ctx.send(f"❌ Erro ao banir usuário: {e}")
+
 # ==========================================
 # COMANDOS SLASH (/SLASH)
 # ==========================================
-
-@bot.tree.command(name="dar", description="Atribui o cargo filhinha de skov.")
-@app_commands.describe(membro="Selecione o membro que receberá o cargo")
-async def dar(interaction: discord.Interaction, membro: discord.Member):
-    cargo = discord.utils.get(interaction.guild.roles, name=NOME_CARGO_FILHINHA)
-    if cargo is None:
-        await interaction.response.send_message(f"⚠️ O cargo **{NOME_CARGO_FILHINHA}** não foi encontrado!", ephemeral=True)
-        return
-    try:
-        await membro.add_roles(cargo)
-        await interaction.response.send_message(f"💖 O cargo **{cargo.name}** foi atribuído a {membro.mention}!", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Erro ao atribuir cargo: {e}", ephemeral=True)
-
-@bot.tree.command(name="stps", description="Atribui o cargo putinha do skov.")
-@app_commands.describe(membro="Selecione o membro que receberá o cargo")
-async def stps(interaction: discord.Interaction, membro: discord.Member):
-    cargo = discord.utils.get(interaction.guild.roles, name=NOME_CARGO_STPS)
-    if cargo is None:
-        await interaction.response.send_message(f"⚠️ O cargo **{NOME_CARGO_STPS}** não foi encontrado!", ephemeral=True)
-        return
-    try:
-        await membro.add_roles(cargo)
-        await interaction.response.send_message(f"🔥 O cargo **{cargo.name}** foi atribuído a {membro.mention}!", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Erro ao atribuir cargo: {e}", ephemeral=True)
-
-@bot.tree.command(name="vzr", description="Bane um usuário do servidor.")
-@app_commands.describe(membro="Selecione o membro a ser banido", motivo="Motivo do banimento")
-async def vzr(interaction: discord.Interaction, membro: discord.Member, motivo: str = "Nenhum motivo fornecido"):
-    if not interaction.user.guild_permissions.ban_members:
-        await interaction.response.send_message("❌ Você não tem permissão para banir membros!", ephemeral=True)
-        return
-    try:
-        await membro.ban(reason=motivo)
-        await interaction.response.send_message(f"🔨 O usuário **{membro.display_name}** foi banido!", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Erro ao banir usuário: {e}", ephemeral=True)
 
 @bot.tree.command(name="slvrfts", description="Define o canal fixo onde as fotos enviadas serão agrupadas.")
 @app_commands.describe(canal="Selecione o canal de fotos")
@@ -306,12 +316,13 @@ async def cmnds(interaction: discord.Interaction):
     embed.add_field(name="$quem", value="Exibe quem pode mexer nas configurações do bot.", inline=False)
     embed.add_field(name="$gemer", value="Prepara o bot para receber o arquivo de som.", inline=False)
     embed.add_field(name="$entrarcallgemer", value="Entra na call e toca o som enviado.", inline=False)
-    embed.add_field(name="/dar @membro", value="Atribui o cargo 'filhinha de skov'.", inline=False)
-    embed.add_field(name="/stps @membro", value="Atribui o cargo 'putinha do skov'.", inline=False)
-    embed.add_field(name="/vzr @membro", value="Bane o membro selecionado do servidor.", inline=False)
+    embed.add_field(name="$dar @membro", value="Atribui o cargo 'filhinha de skov'.", inline=False)
+    embed.add_field(name="$stps @membro", value="Atribui o cargo 'putinha do skov'.", inline=False)
+    embed.add_field(name="$vzr @membro [motivo]", value="Bane o membro selecionado do servidor.", inline=False)
     embed.add_field(name="/slvrfts #canal", value="Define o canal fixo para onde as fotos serão encaminhadas.", inline=False)
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Execução do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
+            
