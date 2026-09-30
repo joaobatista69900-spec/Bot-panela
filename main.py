@@ -21,9 +21,7 @@ bot = MeuBot()
 
 # Configurações globais
 NOME_DO_CARGO = "putinha do skov"
-CANAL_FOTOS_ID = (
-    None  # Guardará o ID do canal para onde as fotos serão enviadas
-)
+CANAL_FOTOS_ID = None  # Se None, encaminha no próprio canal onde foi enviada
 
 
 @bot.event
@@ -32,27 +30,30 @@ async def on_ready():
 
 
 # ==========================================
-# MONITORAMENTO E SALVAMENTO DE FOTOS
+# MONITORAMENTO E ENCAMINHAMENTO DE FOTOS
 # ==========================================
 @bot.event
 async def on_message(message: discord.Message):
   global CANAL_FOTOS_ID
 
-  # Ignora mensagens do próprio bot ou mensagens privadas (fora de servidores)
+  # Ignora mensagens do próprio bot ou mensagens fora de servidores
   if message.author.bot or not message.guild:
     return
 
-  # Se o canal de fotos foi configurado e a mensagem tem arquivos anexados
-  if CANAL_FOTOS_ID and message.attachments:
-    canal_destino = message.guild.get_channel(CANAL_FOTOS_ID)
+  # Verifica se a mensagem possui imagens anexadas
+  if message.attachments:
+    # Se um canal foi definido via /slvrfts, usa ele. Caso contrário, usa o canal da própria mensagem.
+    if CANAL_FOTOS_ID:
+      canal_destino = message.guild.get_channel(CANAL_FOTOS_ID)
+    else:
+      canal_destino = message.channel
 
-    # Evita salvar fotos que forem enviadas dentro do próprio canal de fotos
-    if canal_destino and message.channel.id != CANAL_FOTOS_ID:
+    if canal_destino:
       for anexo in message.attachments:
         # Verifica se o anexo é uma imagem
         if anexo.content_type and "image" in anexo.content_type:
           embed = discord.Embed(
-              title="📸 Foto Salva!",
+              title="📸 Foto Encaminhada!",
               description=(
                   f"👤 **Enviado por:** {message.author.mention}\n📍 **Canal de"
                   f" origem:** {message.channel.mention}"
@@ -144,7 +145,7 @@ async def vzr(
 @bot.tree.command(
     name="slvrfts",
     description=(
-        "Define o canal para onde as fotos enviadas serão reencaminhadas."
+        "Define o canal fixo para onde as fotos enviadas serão encaminhadas."
     ),
 )
 @app_commands.describe(
@@ -154,7 +155,7 @@ async def slvrfts(interaction: discord.Interaction, canal: discord.TextChannel):
   global CANAL_FOTOS_ID
   CANAL_FOTOS_ID = canal.id
   await interaction.response.send_message(
-      f"✅ Canal de fotos definido para: {canal.mention}", ephemeral=True
+      f"✅ Canal fixo de fotos definido para: {canal.mention}", ephemeral=True
   )
 
 
@@ -180,7 +181,10 @@ async def cmnds(interaction: discord.Interaction):
   )
   embed.add_field(
       name="/slvrfts #canal",
-      value="Define em qual canal o bot deve salvar/enviar as fotos recebidas.",
+      value=(
+          "Define um canal específico para reencaminhar fotos (se não definir,"
+          " reencaminha no canal atual)."
+      ),
       inline=False,
   )
   embed.add_field(
@@ -192,4 +196,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-      
+    
