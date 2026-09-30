@@ -23,28 +23,19 @@ bot = MeuBot()
 NOME_DO_CARGO = "putinha do skov"
 CANAL_FOTOS_ID = None
 
-# Configuração do YTDL otimizada para evitar bloqueios de IP de servidor
+# Configuração do YTDL forçando busca no SoundCloud (scsearch)
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
     'quiet': True,
     'no_warnings': True,
-    'default_search': 'ytsearch',
-    'source_address': '0.0.0.0',
+    'default_search': 'scsearch',
     'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'extract_flat': False,
-    'extractor_args': {
-        'youtube': {
-            'player_client': ['android', 'mweb']
-        }
-    }
 }
 
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-    'options': '-vn -loglevel error'
+    'options': '-vn'
 }
 
 @bot.event
@@ -78,7 +69,7 @@ async def tocar(ctx, *, busca: str = None):
         await ctx.send(f"❌ Não consegui entrar na call: {e}")
         return
 
-    # Garante que a conexão de voz estabeleceu
+    # Garante estabilidade da conexão de voz
     contador = 0
     while not voice_client.is_connected():
         await asyncio.sleep(0.5)
@@ -87,43 +78,38 @@ async def tocar(ctx, *, busca: str = None):
             await ctx.send("❌ A conexão com o canal de voz demorou demais. Tente novamente!")
             return
 
-    msg_espera = await ctx.send("🔍 Procurando a música, aguarde um instante...")
+    msg_espera = await ctx.send("🔍 Procurando a música no SoundCloud, aguarde...")
 
-    # Extração de informações do áudio
+    # Extrai o link de áudio via SoundCloud
     loop = asyncio.get_event_loop()
     try:
         with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ytdl:
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(busca, download=False))
-            
             if 'entries' in data and len(data['entries']) > 0:
                 data = data['entries'][0]
 
             url_stream = data.get('url')
             titulo = data.get('title', 'Música')
-            
+
             if not url_stream:
-                await msg_espera.edit(content="❌ Não foi possível obter o link de áudio da música.")
+                await msg_espera.edit(content="❌ Não foi possível obter o áudio no SoundCloud.")
                 return
 
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro ao buscar música no YouTube:\n`{e}`")
+        await msg_espera.edit(content=f"❌ Erro ao buscar no SoundCloud:\n`{e}`")
         return
 
-    # Se já estiver tocando algo, para
+    # Se já estiver a tocar algo, interrompe
     if voice_client.is_playing():
         voice_client.stop()
 
-    # Toca o áudio via FFmpeg apontando para o binário do imageio-ffmpeg
+    # Toca o áudio diretamente via FFmpeg (Sem precisar baixar)
     try:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         source = discord.FFmpegPCMAudio(url_stream, executable=ffmpeg_exe, **FFMPEG_OPTIONS)
         
-        def rep_callback(err):
-            if err:
-                print(f"Erro durante a reprodução: {err}")
-
-        voice_client.play(source, after=rep_callback)
-        await msg_espera.edit(content=f"🎶 **Tocando agora:** `{titulo}` na call **{canal_voz.name}**!")
+        voice_client.play(source, after=lambda e: print(f'Erro na reprodução: {e}') if e else None)
+        await msg_espera.edit(content=f"🎶 **Tocando agora (SoundCloud):** `{titulo}` na call **{canal_voz.name}**!")
     except Exception as e:
         await msg_espera.edit(content=f"❌ Erro ao iniciar o áudio: {e}")
 
@@ -201,7 +187,7 @@ async def on_message(message: discord.Message):
 async def stps(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_DO_CARGO)
     if cargo is None:
-        await interaction.response.send_message(f"⚠️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
+        await interaction.response.send_message(f"⚠️️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
@@ -231,7 +217,7 @@ async def slvrfts(interaction: discord.Interaction, canal: discord.TextChannel):
 @bot.tree.command(name="cmnds", description="Exibe a lista de comandos do bot.")
 async def cmnds(interaction: discord.Interaction):
     embed = discord.Embed(title="📜 Lista de Comandos", color=discord.Color.green())
-    embed.add_field(name="!tocar <nome ou link>", value="O bot entra na call e toca a música.", inline=False)
+    embed.add_field(name="!tocar <nome ou link>", value="O bot entra na call e toca a música via SoundCloud.", inline=False)
     embed.add_field(name="!parar", value="Para de tocar e sai da call de voz.", inline=False)
     embed.add_field(name="/stps @membro", value="Atribui o cargo especial ao membro indicado.", inline=False)
     embed.add_field(name="/vzr @membro", value="Bane o membro selecionado.", inline=False)
@@ -240,3 +226,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
+                                                   
