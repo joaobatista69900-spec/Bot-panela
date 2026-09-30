@@ -1,36 +1,39 @@
 import os
 import ctypes
-import ctypes.util
 import discord
 from discord import app_commands
 from discord.ext import commands
 import imageio_ffmpeg
 
 # ==========================================
-# CARREGAMENTO FORÇADO DA LIBOPUS (LINUX/RAILWAY)
+# CARREGAMENTO FORÇADO DO OPUS VIA PYTHON
 # ==========================================
 def carregar_opus():
     if discord.opus.is_loaded():
         return True
 
-    caminhos_opus = [
+    # Tenta carregar usando a biblioteca nativa empacotada no Python
+    try:
+        import opuslib_sys
+        # Tenta pegar o caminho do arquivo compilado do opuslib_sys
+        opus_path = opuslib_sys._opus_lib_path
+        discord.opus.load_opus(opus_path)
+        print(f"✅ Opus carregado via opuslib_sys: {opus_path}")
+        return True
+    except Exception as e:
+        print(f"⚠️ Erro ao carregar via opuslib_sys: {e}")
+
+    # Outras tentativas padrão de fallback no Linux
+    caminhos_fallback = [
         'libopus.so.0',
         'libopus.so',
-        'libopus.so.0.8.0',
         '/usr/lib/x86_64-linux-gnu/libopus.so.0',
-        '/usr/lib/libopus.so.0',
-        '/usr/lib64/libopus.so.0',
-        '/nix/store/*-libopus-*/lib/libopus.so'
+        '/usr/lib/libopus.so.0'
     ]
-
-    local_encontrado = ctypes.util.find_library('opus')
-    if local_encontrado:
-        caminhos_opus.insert(0, local_encontrado)
-
-    for caminho in caminhos_opus:
+    for caminho in caminhos_fallback:
         try:
             discord.opus.load_opus(caminho)
-            print(f"✅ Opus carregado com sucesso via: {caminho}")
+            print(f"✅ Opus carregado via fallback: {caminho}")
             return True
         except Exception:
             continue
@@ -253,7 +256,7 @@ async def entrarcallgemer_cmd(ctx):
 async def dar(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_CARGO_FILHINHA)
     if cargo is None:
-        await interaction.response.send_message(f"⚠️️ O cargo **{NOME_CARGO_FILHINHA}** não foi encontrado!", ephemeral=True)
+        await interaction.response.send_message(f"⚠️ O cargo **{NOME_CARGO_FILHINHA}** não foi encontrado!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
@@ -312,4 +315,3 @@ async def cmnds(interaction: discord.Interaction):
 
 # Execução do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-    
