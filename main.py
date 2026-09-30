@@ -13,17 +13,16 @@ def carregar_opus():
     if discord.opus.is_loaded():
         return True
 
-    # Lista de nomes comuns e caminhos da biblioteca Opus no Linux
     caminhos_opus = [
         'libopus.so.0',
         'libopus.so',
         'libopus.so.0.8.0',
         '/usr/lib/x86_64-linux-gnu/libopus.so.0',
         '/usr/lib/libopus.so.0',
-        '/usr/lib64/libopus.so.0'
+        '/usr/lib64/libopus.so.0',
+        '/nix/store/*-libopus-*/lib/libopus.so'
     ]
 
-    # Tenta via ctypes.util primeiro
     local_encontrado = ctypes.util.find_library('opus')
     if local_encontrado:
         caminhos_opus.insert(0, local_encontrado)
@@ -36,7 +35,6 @@ def carregar_opus():
         except Exception:
             continue
 
-    print("⚠️ Não foi possível carregar a libopus nativa diretamente.")
     return False
 
 carregar_opus()
@@ -199,7 +197,6 @@ async def entrarcallgemer_cmd(ctx):
         await ctx.send("❌ Você precisa estar em um canal de voz para usar esse comando!")
         return
 
-    # Tenta recarregar o Opus se ainda não estiver pronto
     if not discord.opus.is_loaded():
         carregar_opus()
 
@@ -256,7 +253,7 @@ async def entrarcallgemer_cmd(ctx):
 async def dar(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_CARGO_FILHINHA)
     if cargo is None:
-        await interaction.response.send_message(f"⚠️ O cargo **{NOME_CARGO_FILHINHA}** não foi encontrado!", ephemeral=True)
+        await interaction.response.send_message(f"⚠️️ O cargo **{NOME_CARGO_FILHINHA}** não foi encontrado!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
