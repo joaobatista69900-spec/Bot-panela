@@ -1,21 +1,45 @@
 import os
+import ctypes
+import ctypes.util
 import discord
 from discord import app_commands
 from discord.ext import commands
 import imageio_ffmpeg
 
 # ==========================================
-# CARREGAR BIBLIOTECA OPUS PARA VOZ
+# CARREGAMENTO FORÇADO DA LIBOPUS (LINUX/RAILWAY)
 # ==========================================
-if not discord.opus.is_loaded():
-    try:
-        # Tenta carregar a biblioteca opus nativa no Linux (Railway)
-        discord.opus.load_opus('libopus.so.0')
-    except Exception as e:
+def carregar_opus():
+    if discord.opus.is_loaded():
+        return True
+
+    # Lista de nomes comuns e caminhos da biblioteca Opus no Linux
+    caminhos_opus = [
+        'libopus.so.0',
+        'libopus.so',
+        'libopus.so.0.8.0',
+        '/usr/lib/x86_64-linux-gnu/libopus.so.0',
+        '/usr/lib/libopus.so.0',
+        '/usr/lib64/libopus.so.0'
+    ]
+
+    # Tenta via ctypes.util primeiro
+    local_encontrado = ctypes.util.find_library('opus')
+    if local_encontrado:
+        caminhos_opus.insert(0, local_encontrado)
+
+    for caminho in caminhos_opus:
         try:
-            discord.opus.load_opus('libopus.so')
-        except Exception as e2:
-            print(f"⚠️ Aviso ao carregar Opus: {e2}")
+            discord.opus.load_opus(caminho)
+            print(f"✅ Opus carregado com sucesso via: {caminho}")
+            return True
+        except Exception:
+            continue
+
+    print("⚠️ Não foi possível carregar a libopus nativa diretamente.")
+    return False
+
+carregar_opus()
 
 # ==========================================
 # CONFIGURAÇÕES PRINCIPAIS
@@ -175,6 +199,14 @@ async def entrarcallgemer_cmd(ctx):
         await ctx.send("❌ Você precisa estar em um canal de voz para usar esse comando!")
         return
 
+    # Tenta recarregar o Opus se ainda não estiver pronto
+    if not discord.opus.is_loaded():
+        carregar_opus()
+
+    if not discord.opus.is_loaded():
+        await ctx.send("❌ A biblioteca de áudio Opus não está carregada no servidor do bot.")
+        return
+
     canal_voz = ctx.author.voice.channel
     voice_client = ctx.voice_client
     ARQUIVO_VIDEO = "gemido.mp4"
@@ -197,7 +229,7 @@ async def entrarcallgemer_cmd(ctx):
     try:
         try:
             ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-        except:
+        except Exception:
             ffmpeg_exe = "ffmpeg"
 
         if voice_client.is_playing():
@@ -283,4 +315,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Execução do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-            
+    
