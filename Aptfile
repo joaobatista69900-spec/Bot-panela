@@ -1,3 +1,5 @@
 ffmpeg
 libffi-dev
 nasm
+libopus-dev
+opus-tools
