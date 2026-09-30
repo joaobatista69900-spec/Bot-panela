@@ -23,14 +23,15 @@ bot = MeuBot()
 NOME_DO_CARGO = "putinha do skov"
 CANAL_FOTOS_ID = None
 
-# Configuração do YTDL forçando busca no SoundCloud (scsearch)
+# Configuração do YTDL (Ignora DRM e prefere áudio mp3 padrão do SoundCloud)
 YTDL_OPTIONS = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio[format_id^=http_mp3]/bestaudio[format_id^=hls_mp3]/bestaudio/best',
     'noplaylist': True,
     'quiet': True,
     'no_warnings': True,
     'default_search': 'scsearch',
     'nocheckcertificate': True,
+    'ignoreerrors': False,
 }
 
 FFMPEG_OPTIONS = {
@@ -80,11 +81,12 @@ async def tocar(ctx, *, busca: str = None):
 
     msg_espera = await ctx.send("🔍 Procurando a música no SoundCloud, aguarde...")
 
-    # Extrai o link de áudio via SoundCloud
+    # Extrai o link de áudio do SoundCloud filtrando o formato
     loop = asyncio.get_event_loop()
     try:
         with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ytdl:
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(busca, download=False))
+            
             if 'entries' in data and len(data['entries']) > 0:
                 data = data['entries'][0]
 
@@ -92,7 +94,7 @@ async def tocar(ctx, *, busca: str = None):
             titulo = data.get('title', 'Música')
 
             if not url_stream:
-                await msg_espera.edit(content="❌ Não foi possível obter o áudio no SoundCloud.")
+                await msg_espera.edit(content="❌ Não foi possível obter o fluxo de áudio dessa música.")
                 return
 
     except Exception as e:
@@ -103,13 +105,13 @@ async def tocar(ctx, *, busca: str = None):
     if voice_client.is_playing():
         voice_client.stop()
 
-    # Toca o áudio diretamente via FFmpeg (Sem precisar baixar)
+    # Toca o áudio via FFmpeg
     try:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         source = discord.FFmpegPCMAudio(url_stream, executable=ffmpeg_exe, **FFMPEG_OPTIONS)
         
         voice_client.play(source, after=lambda e: print(f'Erro na reprodução: {e}') if e else None)
-        await msg_espera.edit(content=f"🎶 **Tocando agora (SoundCloud):** `{titulo}` na call **{canal_voz.name}**!")
+        await msg_espera.edit(content=f"🎶 **Tocando agora:** `{titulo}` na call **{canal_voz.name}**!")
     except Exception as e:
         await msg_espera.edit(content=f"❌ Erro ao iniciar o áudio: {e}")
 
@@ -187,7 +189,7 @@ async def on_message(message: discord.Message):
 async def stps(interaction: discord.Interaction, membro: discord.Member):
     cargo = discord.utils.get(interaction.guild.roles, name=NOME_DO_CARGO)
     if cargo is None:
-        await interaction.response.send_message(f"⚠️️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
+        await interaction.response.send_message(f"⚠️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
         return
     try:
         await membro.add_roles(cargo)
@@ -226,4 +228,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-                                                   
+    
