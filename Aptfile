@@ -1,5 +1,4 @@
 ffmpeg
-libffi-dev
-nasm
+libopus0
 libopus-dev
 opus-tools
