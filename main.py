@@ -30,6 +30,47 @@ async def on_ready():
 
 
 # ==========================================
+# BOAS-VINDAS ESTILO GF (QUANDO ALGUÉM ENTRA)
+# ==========================================
+@bot.event
+async def on_member_join(member: discord.Member):
+  # Tenta enviar uma mensagem carinhosa no privado do novo membro
+  try:
+    embed_pv = discord.Embed(
+        title="Oii, amor! 💕",
+        description=(
+            f"Que bom que você chegou, {member.mention}! Tava morrendo de"
+            " saudades suas... Seja muito bem-vindo(a) ao nosso servidor! 🥰"
+        ),
+        color=discord.Color.pink(),
+    )
+    await member.send(embed=embed_pv)
+  except discord.Forbidden:
+    print(f"Não foi possível enviar mensagem privada para {member.name}.")
+
+  # Procura o primeiro canal de texto do servidor para dar as boas-vindas públicas
+  canal_boas_vindas = member.guild.system_channel
+  if not canal_boas_vindas:
+    # Caso o servidor não tenha um canal de sistema definido, pega o primeiro canal de texto disponível
+    canal_boas_vindas = next(
+        (c for c in member.guild.text_channels if c.permissions_for(member.guild.me).send_messages),
+        None
+    )
+
+  if canal_boas_vindas:
+    embed_chat = discord.Embed(
+        title="Oii meu bem! ❤️",
+        description=(
+            f"Oii {member.mention}, tava com muita saudade de você! ✨\nFico"
+            " muito feliz que você chegou por aqui, aproveite o servidor!"
+        ),
+        color=discord.Color.magenta(),
+    )
+    embed_chat.set_thumbnail(url=member.display_avatar.url)
+    await canal_boas_vindas.send(embed=embed_chat)
+
+
+# ==========================================
 # MONITORAMENTO E ENCAMINHAMENTO DE FOTOS
 # ==========================================
 @bot.event
@@ -42,7 +83,6 @@ async def on_message(message: discord.Message):
 
   # Verifica se a mensagem possui imagens anexadas
   if message.attachments:
-    # Se um canal foi definido via /slvrfts, usa ele. Caso contrário, usa o canal da própria mensagem.
     if CANAL_FOTOS_ID:
       canal_destino = message.guild.get_channel(CANAL_FOTOS_ID)
     else:
@@ -50,7 +90,6 @@ async def on_message(message: discord.Message):
 
     if canal_destino:
       for anexo in message.attachments:
-        # Verifica se o anexo é uma imagem
         if anexo.content_type and "image" in anexo.content_type:
           embed = discord.Embed(
               title="📸 Foto Encaminhada!",
@@ -196,4 +235,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-    
+  
