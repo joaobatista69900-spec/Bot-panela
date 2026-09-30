@@ -1,5 +1,6 @@
 import os
 import ctypes
+import random
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -51,6 +52,13 @@ CANAL_FOTOS_ID = None
 AGUARDANDO_ARQUIVO_GEMIDO = False
 USUARIO_AGUARDANDO_ID = None
 
+# Lista de mensagens aleatórias para o chat de boas-vindas
+MENSAGENS_PAPAI = [
+    "Vem ser meu papai vem🥺",
+    "Tava te esperando, vem ser meu papai... 🥺",
+    "Ainda bem que você chegou, vem ser meu papai 🥺"
+]
+
 class MeuBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -69,32 +77,24 @@ async def on_ready():
     print(f"🔥 Bot conectado e rodando como {bot.user}!")
 
 # ==========================================
-# BOAS-VINDAS ESTILO GF
+# BOAS-VINDAS NO SERVIDOR E PV
 # ==========================================
 @bot.event
 async def on_member_join(member: discord.Member):
+    # Mensagem no PV do membro
     try:
-        embed_pv = discord.Embed(
-            title="Oii, amor! 💕",
-            description=f"Que bom que você chegou, {member.mention}! Tava morrendo de saudades suas... Seja muito bem-vindo(a) ao nosso servidor! 🥰",
-            color=discord.Color.pink()
-        )
-        await member.send(embed=embed_pv)
+        await member.send(f"Oii {member.mention}, vem ser meu papai vem🥺")
     except discord.Forbidden:
         pass
 
+    # Mensagem no canal do servidor
     canal_boas_vindas = member.guild.system_channel
     if not canal_boas_vindas:
         canal_boas_vindas = next((c for c in member.guild.text_channels if c.permissions_for(member.guild.me).send_messages), None)
 
     if canal_boas_vindas:
-        embed_chat = discord.Embed(
-            title="Oii meu bem! ❤️",
-            description=f"Oii {member.mention}, tava com muita saudade de você! ✨\nFico muito feliz que você chegou por aqui, aproveite o servidor!",
-            color=discord.Color.magenta()
-        )
-        embed_chat.set_thumbnail(url=member.display_avatar.url)
-        await canal_boas_vindas.send(embed=embed_chat)
+        msg_aleatoria = random.choice(MENSAGENS_PAPAI)
+        await canal_boas_vindas.send(f"{member.mention} {msg_aleatoria}")
 
 # ==========================================
 # MONITORAMENTO DE MENSAGENS / FOTOS / DOWNLOAD
@@ -171,6 +171,11 @@ async def on_message(message: discord.Message):
 # ==========================================
 # COMANDOS COM PREFIXO $
 # ==========================================
+
+# COMANDO NOVO: $gemapramimbot
+@bot.command(name="gemapramimbot")
+async def gemapramimbot_cmd(ctx):
+    await ctx.send("Papai, vem PV quero pica")
 
 # 1. $quem
 @bot.command(name="quem")
@@ -313,6 +318,7 @@ async def cmnds(interaction: discord.Interaction):
         description="Confira todos os comandos disponíveis:",
         color=discord.Color.green()
     )
+    embed.add_field(name="$gemapramimbot", value="Responde com a frase personalizada.", inline=False)
     embed.add_field(name="$quem", value="Exibe quem pode mexer nas configurações do bot.", inline=False)
     embed.add_field(name="$gemer", value="Prepara o bot para receber o arquivo de som.", inline=False)
     embed.add_field(name="$entrarcallgemer", value="Entra na call e toca o som enviado.", inline=False)
@@ -325,4 +331,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Execução do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-            
+    
