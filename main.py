@@ -43,6 +43,6 @@ async def stps(ctx, membro: discord.Member = None):
     except Exception as e:
         await ctx.send(f"❌ Ocorreu um erro ao atribuir o cargo: {e}")
 
-# Inicia o bot com o Token do Railway
-bot.run(os.getenv("MTU1NDgyNDI2MDk5OTE4ODU2Mg.GcU1c8.l_S71uaWA_gUZ_KGfhzr7hrmNCDSIqNNA9hXQ8"))
-  
+# Puxa o Token da variável DISCORD_TOKEN configurada no Railway
+bot.run(os.getenv("DISCORD_TOKEN"))
+               
