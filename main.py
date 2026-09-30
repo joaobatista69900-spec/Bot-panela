@@ -5,6 +5,19 @@ from discord.ext import commands
 import imageio_ffmpeg
 
 # ==========================================
+# CARREGAR BIBLIOTECA OPUS PARA VOZ
+# ==========================================
+if not discord.opus.is_loaded():
+    try:
+        # Tenta carregar a biblioteca opus nativa no Linux (Railway)
+        discord.opus.load_opus('libopus.so.0')
+    except Exception as e:
+        try:
+            discord.opus.load_opus('libopus.so')
+        except Exception as e2:
+            print(f"⚠️ Aviso ao carregar Opus: {e2}")
+
+# ==========================================
 # CONFIGURAÇÕES PRINCIPAIS
 # ==========================================
 DONO_ID = 1461858587080130663
@@ -182,7 +195,6 @@ async def entrarcallgemer_cmd(ctx):
         return
 
     try:
-        # Tenta obter o caminho do ffmpeg do sistema ou do imageio
         try:
             ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         except:
@@ -271,4 +283,4 @@ async def cmnds(interaction: discord.Interaction):
 
 # Execução do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-        
+            
