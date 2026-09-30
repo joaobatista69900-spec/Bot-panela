@@ -1,238 +1,210 @@
 import os
+import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
-
+import yt_dlp
 
 class MeuBot(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.members = True
+        intents.voice_states = True
+        super().__init__(command_prefix="!", intents=intents)
 
-  def __init__(self):
-    intents = discord.Intents.default()
-    intents.message_content = True
-    intents.members = True
-    super().__init__(command_prefix="$", intents=intents)
-
-  async def setup_hook(self):
-    # Sincroniza os comandos de barra (Slash Commands)
-    await self.tree.sync()
-
+    async def setup_hook(self):
+        await self.tree.sync()
 
 bot = MeuBot()
 
 # Configurações globais
 NOME_DO_CARGO = "putinha do skov"
-CANAL_FOTOS_ID = None  # Se None, encaminha no próprio canal onde foi enviada
+CANAL_FOTOS_ID = None
 
+# Opções do YTDL e FFmpeg para reprodução de áudio fluida
+YTDL_OPTIONS = {
+    'format': 'bestaudio/best',
+    'noplaylist': True,
+    'quiet': True,
+    'default_search': 'ytsearch',
+    'source_address': '0.0.0.0'
+}
+
+FFMPEG_OPTIONS = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    'options': '-vn'
+}
+
+ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
 @bot.event
 async def on_ready():
-  print(f"Bot conectado com sucesso como {bot.user}!")
-
+    print(f"Bot conectado com sucesso como {bot.user}!")
 
 # ==========================================
-# BOAS-VINDAS ESTILO GF (QUANDO ALGUÉM ENTRA)
+# COMANDO DE MÚSICA (!tocar)
+# ==========================================
+@bot.command(name="tocar")
+async def tocar(ctx, *, busca: str = None):
+    if not busca:
+        await ctx.send("❌ Você precisa indicar o nome ou link da música! Exemplo: `!tocar nome da musica`")
+        return
+
+    # Verifica se o usuário está em um canal de voz
+    if not ctx.author.voice or not ctx.author.voice.channel:
+        await ctx.send("❌ Você precisa estar em um canal de voz para eu entrar!")
+        return
+
+    canal_voz = ctx.author.voice.channel
+
+    # Conecta ao canal de voz se ainda não estiver conectado
+    voice_client = ctx.voice_client
+    if voice_client is None:
+        try:
+            voice_client = await canal_voz.connect()
+        except Exception as e:
+            await ctx.send(f"❌ Não consegui entrar na call: {e}")
+            return
+    elif voice_client.channel != canal_voz:
+        await voice_client.move_to(canal_voz)
+
+    msg_espera = await ctx.send("🔍 Procurando a música, aguarde um instante...")
+
+    # Busca o áudio via yt-dlp sem travar o bot
+    loop = asyncio.get_event_loop()
+    try:
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(busca, download=False))
+        if 'entries' in data:
+            data = data['entries'][0]
+
+        filename = data['url']
+        titulo = data.get('title', 'Música')
+    except Exception as e:
+        await msg_espera.edit(content=f"❌ Erro ao buscar a música: {e}")
+        return
+
+    # Se já estiver tocando algo, para a reprodução atual
+    if voice_client.is_playing():
+        voice_client.stop()
+
+    # Toca o áudio
+    source = discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS)
+    voice_client.play(source, after=lambda e: print(f'Erro no tocador: {e}') if e else None)
+
+    await msg_espera.edit(content=f"🎶 Tocando agora: **{titulo}** na call **{canal_voz.name}**!")
+
+# Comando para mandar o bot sair da call
+@bot.command(name="parar")
+async def parar(ctx):
+    if ctx.voice_client:
+        await ctx.voice_client.disconnect()
+        await ctx.send("👋 Saí do canal de voz!")
+    else:
+        await ctx.send("❌ Eu não estou em nenhum canal de voz no momento.")
+
+# ==========================================
+# BOAS-VINDAS
 # ==========================================
 @bot.event
 async def on_member_join(member: discord.Member):
-  # Tenta enviar uma mensagem carinhosa no privado do novo membro
-  try:
-    embed_pv = discord.Embed(
-        title="Oii, amor! 💕",
-        description=(
-            f"Que bom que você chegou, {member.mention}! Tava morrendo de"
-            " saudades suas... Seja muito bem-vindo(a) ao nosso servidor! 🥰"
-        ),
-        color=discord.Color.pink(),
-    )
-    await member.send(embed=embed_pv)
-  except discord.Forbidden:
-    print(f"Não foi possível enviar mensagem privada para {member.name}.")
+    try:
+        embed_pv = discord.Embed(
+            title="Oii, amor! 💕",
+            description=f"Que bom que você chegou, {member.mention}! Tava morrendo de saudades suas... Seja muito bem-vindo(a) ao nosso servidor! 🥰",
+            color=discord.Color.pink()
+        )
+        await member.send(embed=embed_pv)
+    except discord.Forbidden:
+        pass
 
-  # Procura o primeiro canal de texto do servidor para dar as boas-vindas públicas
-  canal_boas_vindas = member.guild.system_channel
-  if not canal_boas_vindas:
-    # Caso o servidor não tenha um canal de sistema definido, pega o primeiro canal de texto disponível
-    canal_boas_vindas = next(
-        (c for c in member.guild.text_channels if c.permissions_for(member.guild.me).send_messages),
-        None
-    )
+    canal_boas_vindas = member.guild.system_channel
+    if not canal_boas_vindas:
+        canal_boas_vindas = next((c for c in member.guild.text_channels if c.permissions_for(member.guild.me).send_messages), None)
 
-  if canal_boas_vindas:
-    embed_chat = discord.Embed(
-        title="Oii meu bem! ❤️",
-        description=(
-            f"Oii {member.mention}, tava com muita saudade de você! ✨\nFico"
-            " muito feliz que você chegou por aqui, aproveite o servidor!"
-        ),
-        color=discord.Color.magenta(),
-    )
-    embed_chat.set_thumbnail(url=member.display_avatar.url)
-    await canal_boas_vindas.send(embed=embed_chat)
-
+    if canal_boas_vindas:
+        embed_chat = discord.Embed(
+            title="Oii meu bem! ❤️",
+            description=f"Oii {member.mention}, tava com muita saudade de você! ✨\nFico muito feliz que você chegou por aqui, aproveite o servidor!",
+            color=discord.Color.magenta()
+        )
+        embed_chat.set_thumbnail(url=member.display_avatar.url)
+        await canal_boas_vindas.send(embed=embed_chat)
 
 # ==========================================
-# MONITORAMENTO E ENCAMINHAMENTO DE FOTOS
+# FOTOS
 # ==========================================
 @bot.event
 async def on_message(message: discord.Message):
-  global CANAL_FOTOS_ID
+    global CANAL_FOTOS_ID
 
-  # Ignora mensagens do próprio bot ou mensagens fora de servidores
-  if message.author.bot or not message.guild:
-    return
+    if message.author.bot or not message.guild:
+        return
 
-  # Verifica se a mensagem possui imagens anexadas
-  if message.attachments:
-    if CANAL_FOTOS_ID:
-      canal_destino = message.guild.get_channel(CANAL_FOTOS_ID)
-    else:
-      canal_destino = message.channel
+    if message.attachments:
+        if CANAL_FOTOS_ID:
+            canal_destino = message.guild.get_channel(CANAL_FOTOS_ID)
+        else:
+            canal_destino = message.channel
 
-    if canal_destino:
-      for anexo in message.attachments:
-        if anexo.content_type and "image" in anexo.content_type:
-          embed = discord.Embed(
-              title="📸 Foto Encaminhada!",
-              description=(
-                  f"👤 **Enviado por:** {message.author.mention}\n📍 **Canal de"
-                  f" origem:** {message.channel.mention}"
-              ),
-              color=discord.Color.blue(),
-          )
-          embed.set_image(url=anexo.url)
-          await canal_destino.send(embed=embed)
+        if canal_destino:
+            for anexo in message.attachments:
+                if anexo.content_type and "image" in anexo.content_type:
+                    embed = discord.Embed(
+                        title="📸 Foto Encaminhada!",
+                        description=f"👤 **Enviado por:** {message.author.mention}\n📍 **Canal de origem:** {message.channel.mention}",
+                        color=discord.Color.blue()
+                    )
+                    embed.set_image(url=anexo.url)
+                    await canal_destino.send(embed=embed)
 
-  await bot.process_commands(message)
-
+    await bot.process_commands(message)
 
 # ==========================================
-# COMANDOS (SLASH COMMANDS)
+# COMANDOS DE BARRA (/slash)
 # ==========================================
-
-
-# 1. Comando /stps
-@bot.tree.command(
-    name="stps", description="Atribui o cargo ao membro selecionado."
-)
+@bot.tree.command(name="stps", description="Atribui o cargo ao membro selecionado.")
 @app_commands.describe(membro="Selecione o membro que receberá o cargo")
 async def stps(interaction: discord.Interaction, membro: discord.Member):
-  cargo = discord.utils.get(interaction.guild.roles, name=NOME_DO_CARGO)
+    cargo = discord.utils.get(interaction.guild.roles, name=NOME_DO_CARGO)
+    if cargo is None:
+        await interaction.response.send_message(f"⚠️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!", ephemeral=True)
+        return
+    try:
+        await membro.add_roles(cargo)
+        await interaction.response.send_message(f"🔥 O cargo **{cargo.name}** foi atribuído a {membro.mention} com sucesso!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Erro ao atribuir cargo: {e}", ephemeral=True)
 
-  if cargo is None:
-    await interaction.response.send_message(
-        f"⚠️ O cargo **{NOME_DO_CARGO}** não foi encontrado no servidor!",
-        ephemeral=True,
-    )
-    return
-
-  try:
-    await membro.add_roles(cargo)
-    await interaction.response.send_message(
-        f"🔥 O cargo **{cargo.name}** foi atribuído a {membro.mention} com"
-        " sucesso!",
-        ephemeral=True,
-    )
-  except discord.Forbidden:
-    await interaction.response.send_message(
-        "❌ Permissão insuficiente. Certifique-se de que o cargo do bot está"
-        " acima do cargo a ser atribuído nas configurações do servidor.",
-        ephemeral=True,
-    )
-  except Exception as e:
-    await interaction.response.send_message(
-        f"❌ Erro ao atribuir cargo: {e}", ephemeral=True
-    )
-
-
-# 2. Comando /vzr
 @bot.tree.command(name="vzr", description="Bane um usuário do servidor.")
-@app_commands.describe(
-    membro="Selecione o membro a ser banido",
-    motivo="Motivo do banimento (opcional)",
-)
-async def vzr(
-    interaction: discord.Interaction,
-    membro: discord.Member,
-    motivo: str = "Nenhum motivo fornecido",
-):
-  if not interaction.user.guild_permissions.ban_members:
-    await interaction.response.send_message(
-        "❌ Você não tem permissão para banir membros!", ephemeral=True
-    )
-    return
+@app_commands.describe(membro="Selecione o membro a ser banido", motivo="Motivo do banimento")
+async def vzr(interaction: discord.Interaction, membro: discord.Member, motivo: str = "Nenhum motivo fornecido"):
+    if not interaction.user.guild_permissions.ban_members:
+        await interaction.response.send_message("❌ Você não tem permissão para banir membros!", ephemeral=True)
+        return
+    try:
+        await membro.ban(reason=motivo)
+        await interaction.response.send_message(f"🔨 O usuário **{membro.display_name}** foi banido!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Erro ao banir usuário: {e}", ephemeral=True)
 
-  try:
-    await membro.ban(reason=motivo)
-    await interaction.response.send_message(
-        f"🔨 O usuário **{membro.display_name}** ({membro.mention}) foi banido"
-        " do servidor!",
-        ephemeral=True,
-    )
-  except discord.Forbidden:
-    await interaction.response.send_message(
-        "❌ Eu não tenho permissão para banir este usuário. Verifique minha"
-        " hierarquia de cargos.",
-        ephemeral=True,
-    )
-  except Exception as e:
-    await interaction.response.send_message(
-        f"❌ Erro ao banir usuário: {e}", ephemeral=True
-    )
-
-
-# 3. Comando /slvrfts
-@bot.tree.command(
-    name="slvrfts",
-    description=(
-        "Define o canal fixo para onde as fotos enviadas serão encaminhadas."
-    ),
-)
-@app_commands.describe(
-    canal="Selecione o canal onde as fotos serão salvas/enviadas"
-)
+@bot.tree.command(name="slvrfts", description="Define o canal fixo de fotos.")
+@app_commands.describe(canal="Selecione o canal")
 async def slvrfts(interaction: discord.Interaction, canal: discord.TextChannel):
-  global CANAL_FOTOS_ID
-  CANAL_FOTOS_ID = canal.id
-  await interaction.response.send_message(
-      f"✅ Canal fixo de fotos definido para: {canal.mention}", ephemeral=True
-  )
+    global CANAL_FOTOS_ID
+    CANAL_FOTOS_ID = canal.id
+    await interaction.response.send_message(f"✅ Canal de fotos definido para: {canal.mention}", ephemeral=True)
 
-
-# 4. Comando /cmnds
-@bot.tree.command(
-    name="cmnds", description="Exibe a lista de comandos do bot."
-)
+@bot.tree.command(name="cmnds", description="Exibe a lista de comandos do bot.")
 async def cmnds(interaction: discord.Interaction):
-  embed = discord.Embed(
-      title="📜 Lista de Comandos do Bot",
-      description="Abaixo estão os comandos disponíveis:",
-      color=discord.Color.green(),
-  )
-  embed.add_field(
-      name="/stps @membro",
-      value="Atribui o cargo especial ao membro indicado.",
-      inline=False,
-  )
-  embed.add_field(
-      name="/vzr @membro [motivo]",
-      value="Bane o membro selecionado do servidor.",
-      inline=False,
-  )
-  embed.add_field(
-      name="/slvrfts #canal",
-      value=(
-          "Define um canal específico para reencaminhar fotos (se não definir,"
-          " reencaminha no canal atual)."
-      ),
-      inline=False,
-  )
-  embed.add_field(
-      name="/cmnds", value="Mostra esta mensagem de ajuda.", inline=False
-  )
-
-  await interaction.response.send_message(embed=embed, ephemeral=True)
-
+    embed = discord.Embed(title="📜 Lista de Comandos", color=discord.Color.green())
+    embed.add_field(name="!tocar nome da musica", value="O bot entra na sua call e toca a música desejada.", inline=False)
+    embed.add_field(name="!parar", value="O bot para de tocar e sai da call de voz.", inline=False)
+    embed.add_field(name="/stps @membro", value="Atribui o cargo especial ao membro indicado.", inline=False)
+    embed.add_field(name="/vzr @membro", value="Bane o membro selecionado.", inline=False)
+    embed.add_field(name="/slvrfts #canal", value="Define o canal para salvar fotos.", inline=False)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Inicialização do Bot
 bot.run(os.getenv("DISCORD_TOKEN"))
-  
+          
