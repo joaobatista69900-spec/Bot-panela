@@ -23,15 +23,23 @@ bot = MeuBot()
 NOME_DO_CARGO = "putinha do skov"
 CANAL_FOTOS_ID = None
 
-# Configuração do YTDL (Ignora DRM e prefere áudio mp3 padrão do SoundCloud)
+# Configuração do YTDL sem restrições usando múltiplos extratores livres
 YTDL_OPTIONS = {
-    'format': 'bestaudio[format_id^=http_mp3]/bestaudio[format_id^=hls_mp3]/bestaudio/best',
+    'format': 'bestaudio/best',
     'noplaylist': True,
     'quiet': True,
     'no_warnings': True,
-    'default_search': 'scsearch',
+    'default_search': 'ytsearch',
     'nocheckcertificate': True,
-    'ignoreerrors': False,
+    'ignoreerrors': True,
+    'source_address': '0.0.0.0',
+    # Extratores alternativos e clientes sem bloqueio de IP
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['tv_embedded', 'android', 'ios'],
+            'skip': ['dash', 'hls']
+        }
+    }
 }
 
 FFMPEG_OPTIONS = {
@@ -79,26 +87,29 @@ async def tocar(ctx, *, busca: str = None):
             await ctx.send("❌ A conexão com o canal de voz demorou demais. Tente novamente!")
             return
 
-    msg_espera = await ctx.send("🔍 Procurando a música no SoundCloud, aguarde...")
+    msg_espera = await ctx.send("🔍 Buscando e liberando áudio, aguarde...")
 
-    # Extrai o link de áudio do SoundCloud filtrando o formato
     loop = asyncio.get_event_loop()
     try:
         with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ytdl:
             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(busca, download=False))
             
-            if 'entries' in data and len(data['entries']) > 0:
+            if data and 'entries' in data and len(data['entries']) > 0:
                 data = data['entries'][0]
+
+            if not data:
+                await msg_espera.edit(content="❌ Nenhuma música encontrada.")
+                return
 
             url_stream = data.get('url')
             titulo = data.get('title', 'Música')
 
             if not url_stream:
-                await msg_espera.edit(content="❌ Não foi possível obter o fluxo de áudio dessa música.")
+                await msg_espera.edit(content="❌ Não foi possível extrair o fluxo de áudio dessa faixa.")
                 return
 
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro ao buscar no SoundCloud:\n`{e}`")
+        await msg_espera.edit(content=f"❌ Erro ao buscar áudio:\n`{e}`")
         return
 
     # Se já estiver a tocar algo, interrompe
@@ -113,7 +124,7 @@ async def tocar(ctx, *, busca: str = None):
         voice_client.play(source, after=lambda e: print(f'Erro na reprodução: {e}') if e else None)
         await msg_espera.edit(content=f"🎶 **Tocando agora:** `{titulo}` na call **{canal_voz.name}**!")
     except Exception as e:
-        await msg_espera.edit(content=f"❌ Erro ao iniciar o áudio: {e}")
+        await msg_espera.edit(content=f"❌ Erro ao iniciar a reprodução: {e}")
 
 # Comando para fazer o bot sair da call
 @bot.command(name="parar")
@@ -219,7 +230,7 @@ async def slvrfts(interaction: discord.Interaction, canal: discord.TextChannel):
 @bot.tree.command(name="cmnds", description="Exibe a lista de comandos do bot.")
 async def cmnds(interaction: discord.Interaction):
     embed = discord.Embed(title="📜 Lista de Comandos", color=discord.Color.green())
-    embed.add_field(name="!tocar <nome ou link>", value="O bot entra na call e toca a música via SoundCloud.", inline=False)
+    embed.add_field(name="!tocar <nome ou link>", value="O bot entra na call e toca a música.", inline=False)
     embed.add_field(name="!parar", value="Para de tocar e sai da call de voz.", inline=False)
     embed.add_field(name="/stps @membro", value="Atribui o cargo especial ao membro indicado.", inline=False)
     embed.add_field(name="/vzr @membro", value="Bane o membro selecionado.", inline=False)
